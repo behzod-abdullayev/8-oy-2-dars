@@ -23,36 +23,32 @@ jobs:
 
       - name: Deploy to server
         env:
-          USER: ${{ secrets.USER }}
           HOST: ${{ secrets.HOST }}
-          # Bu yerda loyiha serverning qayerida turishini ko'rsatasiz
-          APP_DIR: "/projects/3-dars" 
+          USER: ${{ secrets.USERNAME }}
+          APP_DIR: /home/ubuntu/ci_cd
+          PORT: ${{ secrets.PORT }}
         run: |
-          ssh $USER@$HOST << EOF
+          ssh $USER@$HOST "APP_DIR=$APP_DIR PORT=$PORT" << 'EOF'
             set -e
 
-            # 1. Papka bor-yo'qligini tekshirish
             if [ ! -d "$APP_DIR" ]; then
-              echo "Directory $APP_DIR does not exist. Creating..."
               mkdir -p "$APP_DIR"
-              # Repo-ni birinchi marta klon qilish
               git clone https://github.com/behzod-abdullayev/8-oy-2-dars.git "$APP_DIR"
             fi
 
             cd "$APP_DIR"
-
-            # 2. .git papkasi borligini tekshirish (xavfsizlik uchun)
-            if [ ! -d .git ]; then
-              echo "❌ Repo not cloned properly. Aborting."
-              exit 1
-            fi
-
-            # 3. Kodni yangilash va qayta ishga tushirish
+            git reset --hard origin/main
             git pull origin main
+
+            echo "PORT=$PORT" > .env
             npm install
             npm run build
-            
-            # PM2 orqali restart qilish (agar yo'q bo'lsa yangi yaratadi)
-            pm2 restart 3-dars || pm2 start dist/main.js --name "3-dars"
+
+            if pm2 list | grep -q "ci_cd_app"; then
+              pm2 restart ci_cd_app
+            else
+              pm2 start dist/main.js --name ci_cd_app
+            fi
+
+            pm2 save
           EOF
-        shell: bash
